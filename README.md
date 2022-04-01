@@ -1,2 +1,1 @@
-# cute
-Completly Unusable Tiny Engine
+# CUTE - Completly Unusable Tiny Engine
