@@ -1,5 +1,5 @@
+#include "glad.c"
 #include <stdio.h>
-#include <glad/glad.h>
 #include <glfw3.h>
 #include "utils/utils.h"
 #include "math.cpp"
@@ -70,9 +70,31 @@ int main()
 {
     Vector3 a = Vector3( 1.0f, 2.0f, 3.0f );
     Vector3 b = Vector3( 2.0f, 3.0f, 4.0f );
-    Vector3 c = a + b;
+    Vector3 c = a - b;
     printf( "x: %f, y: %f, z: %f\n", c.x, c.y, c.z );
 
+    Matrix3 m = Matrix3( 4, -2, 1,
+                         5, 0, 3,
+                         -1, 2, 6 );
+    Matrix3 inverse = Inverse( m );
+    PrintMatrix( m );
+    printf( "=============\n" );
+    PrintMatrix( inverse );
+    printf( "=============\n" );
+    PrintMatrix( m * inverse );
+
+    Matrix4 n = Matrix4( 3, -2, 7, 2,
+                         5, 1, -4, 3,
+                         9, -3, -8, 3,
+                         1, 0, 4, 2 );
+    Matrix4 nInverse = Inverse( n );
+
+    printf( "\n=============\n" );
+    PrintMatrix( n );
+    printf( "=============\n" );
+    PrintMatrix( nInverse );
+    printf( "=============\n" );
+    PrintMatrix( n * nInverse );
     glfwInit();
 
     glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 4 );

@@ -24,10 +24,11 @@ set compiler_args=^
 -wd4146 ^
 -wd4127 ^
 -wd4312 ^
+-wd4239 ^
 -Fe:cute ^
 -IE:\Tools\glfw\include\GLFW ^
 -IE:\Tools\glad\include ^
--DSLOW
+-DUNITY_BUILD
 
 set linker_args=^
 E:\Tools\glfw\build\src\Debug\glfw3.lib ^
@@ -39,7 +40,7 @@ popd
 
 pushd build
 
-cl %compiler_args% ..\src\*.cpp ..\src\*.c /link %linker_args% && echo [32mBuild successfull[0m || echo [31mBuild failed[0m
+cl %compiler_args% ..\src\main.cpp /link %linker_args% && echo [32mBuild successfull[0m || echo [31mBuild failed[0m
 
 popd
 
