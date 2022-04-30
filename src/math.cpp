@@ -28,6 +28,8 @@ struct Vector3
         float32 b;
     };
 
+    Vector3() { }
+
     Vector3( float32 x, float32 y, float32 z )
     {
         this->x = x;
@@ -160,7 +162,7 @@ internal inline Vector3 Project( Vector3 a, Vector3 b )
 
 internal inline Vector3 Reject( Vector3 a, Vector3 b )
 {
-    return a - Project( a, b );
+    return a - b * ( Dot( a, b ) / Dot( b, b ) );
 }
 
 struct Vector4
@@ -188,6 +190,8 @@ struct Vector4
         float32 w = 0.0f;
         float32 a;
     };
+
+    Vector4() { }
 
     Vector4( float32 x, float32 y, float32 z, float32 w )
     {
@@ -352,6 +356,13 @@ struct Matrix3
         data[ 2 ][ 2 ] = c.z;
     }
 
+    Matrix3( float32 diagonal )
+    {
+        data[ 0 ][ 0 ] = diagonal;
+        data[ 1 ][ 1 ] = diagonal;
+        data[ 2 ][ 2 ] = diagonal;
+    }
+
     float &operator()( int i, int j )
     {
         return data[ j ][ i ]; //@NOTE: [j][i] instead of [i][j] because the matrix has column-major order
@@ -462,6 +473,14 @@ struct Matrix4
         data[ 3 ][ 3 ] = d.w;
     }
 
+    Matrix4( float32 diagonal )
+    {
+        data[ 0 ][ 0 ] = diagonal;
+        data[ 1 ][ 1 ] = diagonal;
+        data[ 2 ][ 2 ] = diagonal;
+        data[ 3 ][ 3 ] = diagonal;
+    }
+
     float &operator()( int i, int j )
     {
         return data[ j ][ i ]; //@NOTE: [j][i] instead of [i][j] because the matrix has column-major order
@@ -562,13 +581,13 @@ internal void PrintMatrix( Matrix3 m )
     }
 }
 
-struct Transform
+struct MatrixTransform
 {
     float32 data[ 4 ][ 4 ] = {};
 
-    Transform( float32 n00, float32 n01, float32 n02, float32 n03,
-               float32 n10, float32 n11, float32 n12, float32 n13,
-               float32 n20, float32 n21, float32 n22, float32 n23 )
+    MatrixTransform( float32 n00, float32 n01, float32 n02, float32 n03,
+                     float32 n10, float32 n11, float32 n12, float32 n13,
+                     float32 n20, float32 n21, float32 n22, float32 n23 )
     {
         data[ 0 ][ 0 ] = n00;
         data[ 0 ][ 1 ] = n10;
@@ -591,7 +610,7 @@ struct Transform
         data[ 3 ][ 3 ] = 1.0f;
     }
 
-    Transform( Vector3 a, Vector3 b, Vector3 c, Vector3 d )
+    MatrixTransform( Vector3 a, Vector3 b, Vector3 c, Vector3 d )
     {
         data[ 0 ][ 0 ] = a.x;
         data[ 0 ][ 1 ] = a.y;
@@ -614,7 +633,7 @@ struct Transform
         data[ 3 ][ 3 ] = 1.0f;
     }
 
-    Transform( Matrix3 m )
+    MatrixTransform( Matrix3 m )
     {
         data[ 0 ][ 0 ] = m.data[ 0 ][ 0 ];
         data[ 0 ][ 1 ] = m.data[ 0 ][ 1 ];
@@ -636,6 +655,15 @@ struct Transform
         data[ 3 ][ 2 ] = 0.0f;
         data[ 3 ][ 3 ] = 1.0f;
     }
+
+    MatrixTransform( float32 diagonal )
+    {
+        data[ 0 ][ 0 ] = diagonal;
+        data[ 1 ][ 1 ] = diagonal;
+        data[ 2 ][ 2 ] = diagonal;
+        data[ 3 ][ 3 ] = diagonal;
+    }
+
     float &operator()( int i, int j )
     {
         return data[ j ][ i ]; //@NOTE: [j][i] instead of [i][j] because the matrix has column-major order
@@ -647,33 +675,33 @@ struct Transform
     }
 };
 
-internal inline Transform operator*( Transform a, Transform b )
+internal inline MatrixTransform operator*( MatrixTransform a, MatrixTransform b )
 {
-    return Transform( a( 0, 0 ) * b( 0, 0 ) + a( 0, 1 ) * b( 1, 0 ) + a( 0, 2 ) * b( 2, 0 ),
-                      a( 0, 0 ) * b( 0, 1 ) + a( 0, 1 ) * b( 1, 1 ) + a( 0, 2 ) * b( 2, 1 ),
-                      a( 0, 0 ) * b( 0, 2 ) + a( 0, 1 ) * b( 1, 2 ) + a( 0, 2 ) * b( 2, 2 ),
-                      a( 0, 0 ) * b( 0, 3 ) + a( 0, 1 ) * b( 1, 3 ) + a( 0, 2 ) * b( 2, 3 ) + a( 0, 3 ),
+    return MatrixTransform( a( 0, 0 ) * b( 0, 0 ) + a( 0, 1 ) * b( 1, 0 ) + a( 0, 2 ) * b( 2, 0 ),
+                            a( 0, 0 ) * b( 0, 1 ) + a( 0, 1 ) * b( 1, 1 ) + a( 0, 2 ) * b( 2, 1 ),
+                            a( 0, 0 ) * b( 0, 2 ) + a( 0, 1 ) * b( 1, 2 ) + a( 0, 2 ) * b( 2, 2 ),
+                            a( 0, 0 ) * b( 0, 3 ) + a( 0, 1 ) * b( 1, 3 ) + a( 0, 2 ) * b( 2, 3 ) + a( 0, 3 ),
 
-                      a( 1, 0 ) * b( 0, 0 ) + a( 1, 1 ) * b( 1, 0 ) + a( 1, 2 ) * b( 2, 0 ),
-                      a( 1, 0 ) * b( 0, 1 ) + a( 1, 1 ) * b( 1, 1 ) + a( 1, 2 ) * b( 2, 1 ),
-                      a( 1, 0 ) * b( 0, 2 ) + a( 1, 1 ) * b( 1, 2 ) + a( 1, 2 ) * b( 2, 2 ),
-                      a( 1, 0 ) * b( 0, 3 ) + a( 1, 1 ) * b( 1, 3 ) + a( 1, 2 ) * b( 2, 3 ) + a( 1, 3 ),
+                            a( 1, 0 ) * b( 0, 0 ) + a( 1, 1 ) * b( 1, 0 ) + a( 1, 2 ) * b( 2, 0 ),
+                            a( 1, 0 ) * b( 0, 1 ) + a( 1, 1 ) * b( 1, 1 ) + a( 1, 2 ) * b( 2, 1 ),
+                            a( 1, 0 ) * b( 0, 2 ) + a( 1, 1 ) * b( 1, 2 ) + a( 1, 2 ) * b( 2, 2 ),
+                            a( 1, 0 ) * b( 0, 3 ) + a( 1, 1 ) * b( 1, 3 ) + a( 1, 2 ) * b( 2, 3 ) + a( 1, 3 ),
 
-                      a( 2, 0 ) * b( 0, 0 ) + a( 2, 1 ) * b( 1, 0 ) + a( 2, 2 ) * b( 2, 0 ),
-                      a( 2, 0 ) * b( 0, 1 ) + a( 2, 1 ) * b( 1, 1 ) + a( 2, 2 ) * b( 2, 1 ),
-                      a( 2, 0 ) * b( 0, 2 ) + a( 2, 1 ) * b( 1, 2 ) + a( 2, 2 ) * b( 2, 2 ),
-                      a( 2, 0 ) * b( 0, 3 ) + a( 2, 1 ) * b( 1, 3 ) + a( 2, 2 ) * b( 2, 3 ) + a( 2, 3 ) );
+                            a( 2, 0 ) * b( 0, 0 ) + a( 2, 1 ) * b( 1, 0 ) + a( 2, 2 ) * b( 2, 0 ),
+                            a( 2, 0 ) * b( 0, 1 ) + a( 2, 1 ) * b( 1, 1 ) + a( 2, 2 ) * b( 2, 1 ),
+                            a( 2, 0 ) * b( 0, 2 ) + a( 2, 1 ) * b( 1, 2 ) + a( 2, 2 ) * b( 2, 2 ),
+                            a( 2, 0 ) * b( 0, 3 ) + a( 2, 1 ) * b( 1, 3 ) + a( 2, 2 ) * b( 2, 3 ) + a( 2, 3 ) );
 }
 
 //@TODO: Make a distinction between point and direction vectors?
-internal inline Vector3 operator*( Transform m, Vector3 v )
+internal inline Vector3 operator*( MatrixTransform m, Vector3 v )
 {
     return Vector3( m( 0, 0 ) * v.x + m( 0, 1 ) * v.y + m( 0, 2 ) * v.z,
                     m( 1, 0 ) * v.x + m( 1, 1 ) * v.y + m( 1, 2 ) * v.z,
                     m( 2, 0 ) * v.x + m( 2, 1 ) * v.y + m( 2, 2 ) * v.z );
 }
 
-internal Transform Inverse( Transform &m )
+internal MatrixTransform Inverse( MatrixTransform &m )
 {
     Vector3 &a = m[ 0 ];
     Vector3 &b = m[ 1 ];
@@ -691,57 +719,57 @@ internal Transform Inverse( Transform &m )
     Vector3 row0 = Cross( b, v );
     Vector3 row1 = Cross( v, a );
 
-    return Transform( row0.x, row0.y, row0.z, -Dot( b, t ),
-                      row1.x, row1.y, row1.z, Dot( a, t ),
-                      s.x, s.y, s.z, -Dot( d, s ) );
+    return MatrixTransform( row0.x, row0.y, row0.z, -Dot( b, t ),
+                            row1.x, row1.y, row1.z, Dot( a, t ),
+                            s.x, s.y, s.z, -Dot( d, s ) );
 }
 
-internal inline Vector3 GetTranslation( Transform &t )
+internal inline Vector3 GetTranslation( MatrixTransform &t )
 {
     return t[ 3 ];
 }
 
-internal inline void SetTranslation( Transform &t, Vector3 p )
+internal inline void SetTranslation( MatrixTransform &t, Vector3 p )
 {
     t.data[ 3 ][ 0 ] = p.x;
     t.data[ 3 ][ 1 ] = p.y;
     t.data[ 3 ][ 2 ] = p.z;
 }
 
-internal Transform CreateRotationX( float32 angle )
+internal MatrixTransform CreateRotationMatrixX( float32 angle )
 {
     angle = DEGREES_TO_RADIANS( angle );
     float32 c = cosf( angle );
     float32 s = sinf( angle );
 
-    return Transform( 1.0f, 0.0f, 0.0f, 0.0f,
-                      0.0f, c, -s, 0.0f,
-                      0.0f, s, c, 0.0f );
+    return MatrixTransform( 1.0f, 0.0f, 0.0f, 0.0f,
+                            0.0f, c, -s, 0.0f,
+                            0.0f, s, c, 0.0f );
 }
 
-internal Transform CreateRotationY( float32 angle )
+internal MatrixTransform CreateRotationMatrixY( float32 angle )
 {
     angle = DEGREES_TO_RADIANS( angle );
     float32 c = cosf( angle );
     float32 s = sinf( angle );
 
-    return Transform( c, 0.0f, s, 0.0f,
-                      0.0f, 1.0f, 0.0f, 0.0f,
-                      -s, 0.0f, c, 0.0f );
+    return MatrixTransform( c, 0.0f, s, 0.0f,
+                            0.0f, 1.0f, 0.0f, 0.0f,
+                            -s, 0.0f, c, 0.0f );
 }
 
-internal Transform CreateRotationZ( float32 angle )
+internal MatrixTransform CreateRotationMatrixZ( float32 angle )
 {
     angle = DEGREES_TO_RADIANS( angle );
     float32 c = cosf( angle );
     float32 s = sinf( angle );
 
-    return Transform( c, -s, 0.0f, 0.0f,
-                      s, c, 0.0f, 0.0f,
-                      0.0f, 0.0f, 1.0f, 0.0f );
+    return MatrixTransform( c, -s, 0.0f, 0.0f,
+                            s, c, 0.0f, 0.0f,
+                            0.0f, 0.0f, 1.0f, 0.0f );
 }
 
-internal Transform CreateRotation( float32 angle, Vector3 axis )
+internal MatrixTransform CreateRotationMatrix( float32 angle, Vector3 axis )
 {
     angle = DEGREES_TO_RADIANS( angle );
     float32 c = cosf( angle );
@@ -756,12 +784,12 @@ internal Transform CreateRotation( float32 angle, Vector3 axis )
     float32 axaz = x * axis.z;
     float32 ayaz = y * axis.z;
 
-    return Transform( c + x * axis.x, axay - s * axis.z, axaz + s * axis.y, 0.0f,
-                      axay + s * axis.z, c + y * axis.y, ayaz - s * axis.x, 0.0f,
-                      axaz - s * axis.y, ayaz + s * axis.x, c + z * axis.z, 0.0f );
+    return MatrixTransform( c + x * axis.x, axay - s * axis.z, axaz + s * axis.y, 0.0f,
+                            axay + s * axis.z, c + y * axis.y, ayaz - s * axis.x, 0.0f,
+                            axaz - s * axis.y, ayaz + s * axis.x, c + z * axis.z, 0.0f );
 }
 
-internal Transform CreateReflection( Vector3 axis )
+internal MatrixTransform CreateReflectionMatrix( Vector3 axis )
 {
     float32 x = axis.x * -2.0f;
     float32 y = axis.y * -2.0f;
@@ -770,12 +798,12 @@ internal Transform CreateReflection( Vector3 axis )
     float32 axaz = x * axis.z;
     float32 ayaz = y * axis.z;
 
-    return Transform( x * axis.x + 1.0f, axay, axaz, 0.0f,
-                      axay, y * axis.y + 1.0f, ayaz, 0.0f,
-                      axaz, ayaz, z * axis.z + 1.0f, 0.0f );
+    return MatrixTransform( x * axis.x + 1.0f, axay, axaz, 0.0f,
+                            axay, y * axis.y + 1.0f, ayaz, 0.0f,
+                            axaz, ayaz, z * axis.z + 1.0f, 0.0f );
 }
 
-internal Transform CreateInvolution( Vector3 axis )
+internal MatrixTransform CreateInvolutionMatrix( Vector3 axis )
 {
     float32 x = axis.x * 2.0f;
     float32 y = axis.y * 2.0f;
@@ -784,19 +812,19 @@ internal Transform CreateInvolution( Vector3 axis )
     float32 axaz = x * axis.z;
     float32 ayaz = y * axis.z;
 
-    return Transform( x * axis.x - 1.0f, axay, axaz, 0.0f,
-                      axay, y * axis.y - 1.0f, ayaz, 0.0f,
-                      axaz, ayaz, z * axis.z - 1.0f, 0.0f );
+    return MatrixTransform( x * axis.x - 1.0f, axay, axaz, 0.0f,
+                            axay, y * axis.y - 1.0f, ayaz, 0.0f,
+                            axaz, ayaz, z * axis.z - 1.0f, 0.0f );
 }
 
-internal Transform CreateScale( float32 scaleX, float32 scaleY, float32 scaleZ )
+internal MatrixTransform CreateScaleMatrix( float32 scaleX, float32 scaleY, float32 scaleZ )
 {
-    return Transform( scaleX, 0.0f, 0.0f, 0.0f,
-                      0.0f, scaleY, 0.0f, 0.0f,
-                      0.0f, 0.0f, scaleZ, 0.0f );
+    return MatrixTransform( scaleX, 0.0f, 0.0f, 0.0f,
+                            0.0f, scaleY, 0.0f, 0.0f,
+                            0.0f, 0.0f, scaleZ, 0.0f );
 }
 
-internal Transform CreateScale( float32 scale, Vector3 axis )
+internal MatrixTransform CreateScaleMatrix( float32 scale, Vector3 axis )
 {
     scale -= 1.0f;
     float32 x = axis.x * scale;
@@ -806,12 +834,12 @@ internal Transform CreateScale( float32 scale, Vector3 axis )
     float32 axaz = x * axis.z;
     float32 ayaz = y * axis.z;
 
-    return Transform( x * axis.x + 1.0f, axay, axaz, 0.0f,
-                      axay, y * axis.y + 1.0f, ayaz, 0.0f,
-                      axaz, ayaz, z * axis.z + 1.0f, 0.0f );
+    return MatrixTransform( x * axis.x + 1.0f, axay, axaz, 0.0f,
+                            axay, y * axis.y + 1.0f, ayaz, 0.0f,
+                            axaz, ayaz, z * axis.z + 1.0f, 0.0f );
 }
 
-internal Transform CreateSkew( float32 angle, Vector3 a, Vector3 b )
+internal MatrixTransform CreateSkewMatrix( float32 angle, Vector3 a, Vector3 b )
 {
     angle = DEGREES_TO_RADIANS( angle );
     float32 t = tanf( angle );
@@ -819,7 +847,216 @@ internal Transform CreateSkew( float32 angle, Vector3 a, Vector3 b )
     float32 y = a.y * t;
     float32 z = a.z * t;
 
-    return Transform( x * b.x + 1.0f, x * b.y, x * b.z, 0.0f,
-                      y * b.x, y * b.y + 1.0f, y * b.z, 0.0f,
-                      z * b.x, z * b.y, z * b.z + 1.0f, 0.0f );
+    return MatrixTransform( x * b.x + 1.0f, x * b.y, x * b.z, 0.0f,
+                            y * b.x, y * b.y + 1.0f, y * b.z, 0.0f,
+                            z * b.x, z * b.y, z * b.z + 1.0f, 0.0f );
+}
+
+struct Quaternion
+{
+    float32 x = 0.0f;
+    float32 y = 0.0f;
+    float32 z = 0.0f;
+    float32 w = 0.0f;
+
+    Quaternion() { }
+
+    Quaternion( float32 a, float32 b, float32 c, float32 d )
+    {
+        x = a;
+        y = b;
+        z = c;
+        w = d;
+    }
+
+    Quaternion( Vector3 &v, float32 s )
+    {
+        x = v.x;
+        y = v.y;
+        z = v.z;
+        w = s;
+    }
+};
+
+internal inline Vector3 GetVectorPart( Quaternion &q )
+{
+    return *( Vector3 * ) &q.x;
+}
+
+internal inline Quaternion operator*( Quaternion q1, Quaternion q2 )
+{
+    return Quaternion( q1.w * q2.x + q1.x * q2.w + q1.y * q2.z - q1.z * q2.y,
+                       q1.w * q2.y - q1.x * q2.z + q1.y * q2.w + q1.z * q2.x,
+                       q1.w * q2.z + q1.x * q2.y - q1.y * q2.x + q1.z * q2.w,
+                       q1.w * q2.w - q1.x * q2.x - q1.y * q2.y - q1.z * q2.z );
+}
+
+internal MatrixTransform GetRotationMatrix( Quaternion &q )
+{
+    float32 x2 = q.x * q.x;
+    float32 y2 = q.y * q.y;
+    float32 z2 = q.z * q.z;
+    float32 xy = q.x * q.y;
+    float32 xz = q.x * q.z;
+    float32 yz = q.y * q.z;
+    float32 wx = q.w * q.x;
+    float32 wy = q.w * q.y;
+    float32 wz = q.w * q.z;
+
+    return MatrixTransform( 1.0f - 2.0f * ( y2 + z2 ), 2.0f * ( xy - wz ), 2.0f * ( xz + wy ), 0.0f,
+                            2.0f * ( xy + wz ), 1.0f - 2.0f * ( x2 + z2 ), 2.0f * ( yz - wx ), 0.0f,
+                            2.0f * ( xz - wy ), 2.0f * ( yz + wx ), 1.0f - 2.0f * ( x2 + y2 ), 0.0f );
+}
+
+internal void SetRotationMatrix( Quaternion &q, MatrixTransform &m )
+{
+    float32 m00 = m( 0, 0 );
+    float32 m11 = m( 1, 1 );
+    float32 m22 = m( 2, 2 );
+    float32 sum = m00 + m11 + m22;
+
+    if ( sum > 0.0f )
+    {
+        q.w = sqrtf( sum + 1.0f ) * 0.5f;
+        float32 f = 0.25f / q.w;
+
+        q.x = ( m( 2, 1 ) - m( 1, 2 ) ) * f;
+        q.y = ( m( 0, 2 ) - m( 2, 0 ) ) * f;
+        q.z = ( m( 1, 0 ) - m( 0, 1 ) ) * f;
+    }
+    else if ( m00 > m11 && m00 > m22 )
+    {
+        q.x = sqrtf( m00 - m11 - m22 + 1.0f ) * 0.5f;
+        float32 f = 0.25f / q.x;
+
+        q.y = ( m( 1, 0 ) - m( 0, 1 ) ) * f;
+        q.z = ( m( 0, 2 ) - m( 2, 0 ) ) * f;
+        q.w = ( m( 2, 1 ) - m( 1, 2 ) ) * f;
+    }
+    else if ( m11 > m22 )
+    {
+        q.y = sqrtf( m11 - m00 - m22 + 1.0f ) * 0.5f;
+        float32 f = 0.25f / q.y;
+
+        q.x = ( m( 1, 0 ) - m( 0, 1 ) ) * f;
+        q.z = ( m( 2, 1 ) - m( 1, 2 ) ) * f;
+        q.w = ( m( 0, 2 ) - m( 2, 0 ) ) * f;
+    }
+    else
+    {
+        q.z = sqrtf( m22 - m00 - m11 + 1.0f ) * 0.5f;
+        float32 f = 0.25f / q.z;
+
+        q.x = ( m( 0, 2 ) - m( 2, 0 ) ) * f;
+        q.y = ( m( 2, 1 ) - m( 1, 2 ) ) * f;
+        q.w = ( m( 1, 0 ) - m( 0, 1 ) ) * f;
+    }
+}
+
+internal Quaternion CreateQuaternion( Vector3 axis, float32 angle )
+{
+    angle = DEGREES_TO_RADIANS( angle );
+    float32 halfAngle = angle * 0.5f;
+    float32 s = sinf( halfAngle );
+    return Quaternion( s * axis.x, s * axis.y, s * axis.z, cosf( halfAngle ) );
+}
+
+internal MatrixTransform CreateTranslationMatrix( Vector3 v )
+{
+    return MatrixTransform( 1.0f, 0.0f, 0.0f, v.x,
+                            0.0f, 1.0f, 0.0f, v.y,
+                            0.0f, 0.0f, 1.0f, v.z );
+}
+
+struct Transform
+{
+    Vector3 position;
+    Quaternion rotation;
+    Vector3 scale;
+
+    Transform()
+    {
+        position = Vector3( 0.0f, 0.0f, 0.0f );
+        rotation = Quaternion( 0.0f, 0.0f, 0.0f, 1.0f );
+        scale = Vector3( 1.0f, 1.0f, 1.0f );
+    }
+
+    Transform( Vector3 &p, Quaternion &r, Vector3 &s )
+    {
+        position = p;
+        rotation = r;
+        scale = s;
+    }
+};
+
+internal inline void Translate( Transform &t, Vector3 v )
+{
+    t.position += v;
+}
+
+internal Vector3 RotatePoint( Vector3 &v, Quaternion &q )
+{
+    Vector3 b = GetVectorPart( q );
+    float32 b2 = b.x * b.x + b.y * b.y + b.z * b.z;
+    return v * ( q.w * q.w - b2 ) + b * ( Dot( v, b ) * 2.0f ) + Cross( b, v ) * ( q.w * 2.0f );
+}
+
+internal inline void RotateAroundPoint( Transform &t, Vector3 point, Vector3 axis, float32 angle )
+{
+    Quaternion q = CreateQuaternion( axis, angle );
+    Vector3 p = t.position - point;
+    t.position = RotatePoint( p, q );
+    t.rotation = q * t.rotation;
+}
+
+internal inline void Rotate( Transform &t, Vector3 axis, float32 angle )
+{
+    t.rotation = CreateQuaternion( axis, angle ) * t.rotation;
+}
+
+internal inline void Rotate( Transform &t, Quaternion q )
+{
+    t.rotation = q * t.rotation;
+}
+
+internal inline void RotateX( Transform &t, float32 angle )
+{
+    Rotate( t, CreateQuaternion( Vector3( 1.0f, 0.0f, 0.0f ), angle ) );
+}
+
+internal inline void RotateY( Transform &t, float32 angle )
+{
+    Rotate( t, CreateQuaternion( Vector3( 0.0f, 1.0f, 0.0f ), angle ) );
+}
+
+internal inline void RotateZ( Transform &t, float32 angle )
+{
+    Rotate( t, CreateQuaternion( Vector3( 0.0f, 0.0f, 1.0f ), angle ) );
+}
+
+internal inline void Scale( Transform &t, Vector3 v )
+{
+    t.scale *= v;
+}
+
+internal MatrixTransform CreateModelMatrix( Transform &t )
+{
+    Quaternion &q = t.rotation;
+    float32 x2 = q.x * q.x;
+    float32 y2 = q.y * q.y;
+    float32 z2 = q.z * q.z;
+    float32 xy = q.x * q.y;
+    float32 xz = q.x * q.z;
+    float32 yz = q.y * q.z;
+    float32 wx = q.w * q.x;
+    float32 wy = q.w * q.y;
+    float32 wz = q.w * q.z;
+
+    float32 sx = t.scale.x;
+    float32 sy = t.scale.y;
+    float32 sz = t.scale.z;
+
+    return MatrixTransform( sx * ( 1.0f - 2.0f * ( y2 + z2 ) ), sy * ( 2.0f * ( xy - wz ) ), sz * ( 2.0f * ( xz + wy ) ), t.position.x,
+                            sx * ( 2.0f * ( xy + wz ) ), sy * ( 1.0f - 2.0f * ( x2 + z2 ) ), sz * ( 2.0f * ( yz - wx ) ), t.position.y,
+                            sx * ( 2.0f * ( xz - wy ) ), sy * ( 2.0f * ( yz + wx ) ), sz * ( 1.0f - 2.0f * ( x2 + y2 ) ), t.position.z );
 }

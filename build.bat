@@ -28,7 +28,8 @@ set compiler_args=^
 -Fe:cute ^
 -IE:\Tools\glfw\include\GLFW ^
 -IE:\Tools\glad\include ^
--DUNITY_BUILD
+-DUNITY_BUILD ^
+-DSLOW
 
 set linker_args=^
 E:\Tools\glfw\build\src\Debug\glfw3.lib ^

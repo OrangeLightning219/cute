@@ -1,13 +1,23 @@
 #include "glad.c"
 #include <stdio.h>
+#include <stdlib.h>
 #include <glfw3.h>
 #include "utils/utils.h"
+// #define STB_IMAGE_IMPLEMENTATION
 #include "math.cpp"
+#include "shaders.cpp"
+#include "shapes.cpp"
+#include "camera.cpp"
 
 global_variable float32 deltaTime = 0.0f;
 global_variable float32 lastFrame = 0.0f;
 global_variable int windowWidth = 1280;
 global_variable int windowHeight = 1280;
+
+global_variable Camera camera;
+global_variable bool firstMouse = true;
+global_variable float32 lastMouseX = 0.0f;
+global_variable float32 lastMouseY = 0.0f;
 
 void APIENTRY glDebugOutput( GLenum source, GLenum type, unsigned int id, GLenum severity, GLsizei length,
                              const char *message, const void *userParam )
@@ -18,35 +28,35 @@ void APIENTRY glDebugOutput( GLenum source, GLenum type, unsigned int id, GLenum
     char *sourceString = 0;
     switch ( source )
     {
-        case GL_DEBUG_SOURCE_API: sourceString = "Source: API"; break;
-        case GL_DEBUG_SOURCE_WINDOW_SYSTEM: sourceString = "Source: Window System"; break;
-        case GL_DEBUG_SOURCE_SHADER_COMPILER: sourceString = "Source: Shader Compiler"; break;
-        case GL_DEBUG_SOURCE_THIRD_PARTY: sourceString = "Source: Third Party"; break;
-        case GL_DEBUG_SOURCE_APPLICATION: sourceString = "Source: Application"; break;
-        case GL_DEBUG_SOURCE_OTHER: sourceString = "Source: Other"; break;
+        case GL_DEBUG_SOURCE_API: sourceString = ( char * ) "Source: API"; break;
+        case GL_DEBUG_SOURCE_WINDOW_SYSTEM: sourceString = ( char * ) "Source: Window System"; break;
+        case GL_DEBUG_SOURCE_SHADER_COMPILER: sourceString = ( char * ) "Source: Shader Compiler"; break;
+        case GL_DEBUG_SOURCE_THIRD_PARTY: sourceString = ( char * ) "Source: Third Party"; break;
+        case GL_DEBUG_SOURCE_APPLICATION: sourceString = ( char * ) "Source: Application"; break;
+        case GL_DEBUG_SOURCE_OTHER: sourceString = ( char * ) "Source: Other"; break;
     }
 
     char *typeString = 0;
     switch ( type )
     {
-        case GL_DEBUG_TYPE_ERROR: typeString = "Type: Error"; break;
-        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: typeString = "Type: Deprecated Behaviour"; break;
-        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR: typeString = "Type: Undefined Behaviour"; break;
-        case GL_DEBUG_TYPE_PORTABILITY: typeString = "Type: Portability"; break;
-        case GL_DEBUG_TYPE_PERFORMANCE: typeString = "Type: Performance"; break;
-        case GL_DEBUG_TYPE_MARKER: typeString = "Type: Marker"; break;
-        case GL_DEBUG_TYPE_PUSH_GROUP: typeString = "Type: Push Group"; break;
-        case GL_DEBUG_TYPE_POP_GROUP: typeString = "Type: Pop Group"; break;
-        case GL_DEBUG_TYPE_OTHER: typeString = "Type: Other"; break;
+        case GL_DEBUG_TYPE_ERROR: typeString = ( char * ) "Type: Error"; break;
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: typeString = ( char * ) "Type: Deprecated Behaviour"; break;
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR: typeString = ( char * ) "Type: Undefined Behaviour"; break;
+        case GL_DEBUG_TYPE_PORTABILITY: typeString = ( char * ) "Type: Portability"; break;
+        case GL_DEBUG_TYPE_PERFORMANCE: typeString = ( char * ) "Type: Performance"; break;
+        case GL_DEBUG_TYPE_MARKER: typeString = ( char * ) "Type: Marker"; break;
+        case GL_DEBUG_TYPE_PUSH_GROUP: typeString = ( char * ) "Type: Push Group"; break;
+        case GL_DEBUG_TYPE_POP_GROUP: typeString = ( char * ) "Type: Pop Group"; break;
+        case GL_DEBUG_TYPE_OTHER: typeString = ( char * ) "Type: Other"; break;
     }
 
     char *severityString = 0;
     switch ( severity )
     {
-        case GL_DEBUG_SEVERITY_HIGH: severityString = "Severity: high"; break;
-        case GL_DEBUG_SEVERITY_MEDIUM: severityString = "Severity: medium"; break;
-        case GL_DEBUG_SEVERITY_LOW: severityString = "Severity: low"; break;
-        case GL_DEBUG_SEVERITY_NOTIFICATION: severityString = "Severity: notification"; break;
+        case GL_DEBUG_SEVERITY_HIGH: severityString = ( char * ) "Severity: high"; break;
+        case GL_DEBUG_SEVERITY_MEDIUM: severityString = ( char * ) "Severity: medium"; break;
+        case GL_DEBUG_SEVERITY_LOW: severityString = ( char * ) "Severity: low"; break;
+        case GL_DEBUG_SEVERITY_NOTIFICATION: severityString = ( char * ) "Severity: notification"; break;
     }
     printf( "Debug message (%d): %s\n%s | %s | %s\n\n", id, message, sourceString, typeString, severityString );
 }
@@ -64,37 +74,54 @@ void ProcessInput( GLFWwindow *window )
     {
         glfwSetWindowShouldClose( window, true );
     }
+
+    if ( glfwGetKey( window, GLFW_KEY_W ) == GLFW_PRESS )
+    {
+        CameraProcessKeyboard( &camera, FORWARD, deltaTime );
+    }
+
+    if ( glfwGetKey( window, GLFW_KEY_S ) == GLFW_PRESS )
+    {
+        CameraProcessKeyboard( &camera, BACKWARD, deltaTime );
+    }
+
+    if ( glfwGetKey( window, GLFW_KEY_A ) == GLFW_PRESS )
+    {
+        CameraProcessKeyboard( &camera, LEFT, deltaTime );
+    }
+
+    if ( glfwGetKey( window, GLFW_KEY_D ) == GLFW_PRESS )
+    {
+        CameraProcessKeyboard( &camera, RIGHT, deltaTime );
+    }
+
+    if ( glfwGetKey( window, GLFW_KEY_LEFT_SHIFT ) == GLFW_PRESS )
+    {
+        camera.movementSpeed = 7.0f;
+    }
+    else
+    {
+        camera.movementSpeed = defaultSpeed;
+    }
 }
 
+void MouseCallback( GLFWwindow *window, float64 mouseX, float64 mouseY )
+{
+    if ( firstMouse )
+    {
+        lastMouseX = ( float32 ) mouseX;
+        lastMouseY = ( float32 ) mouseY;
+        firstMouse = false;
+    }
+
+    float32 xOffset = ( float32 ) mouseX - lastMouseX;
+    float32 yOffset = lastMouseY - ( float32 ) mouseY;
+    lastMouseX = ( float32 ) mouseX;
+    lastMouseY = ( float32 ) mouseY;
+    CameraProcessMouse( &camera, xOffset, yOffset );
+}
 int main()
 {
-    Vector3 a = Vector3( 1.0f, 2.0f, 3.0f );
-    Vector3 b = Vector3( 2.0f, 3.0f, 4.0f );
-    Vector3 c = a - b;
-    printf( "x: %f, y: %f, z: %f\n", c.x, c.y, c.z );
-
-    Matrix3 m = Matrix3( 4, -2, 1,
-                         5, 0, 3,
-                         -1, 2, 6 );
-    Matrix3 inverse = Inverse( m );
-    PrintMatrix( m );
-    printf( "=============\n" );
-    PrintMatrix( inverse );
-    printf( "=============\n" );
-    PrintMatrix( m * inverse );
-
-    Matrix4 n = Matrix4( 3, -2, 7, 2,
-                         5, 1, -4, 3,
-                         9, -3, -8, 3,
-                         1, 0, 4, 2 );
-    Matrix4 nInverse = Inverse( n );
-
-    printf( "\n=============\n" );
-    PrintMatrix( n );
-    printf( "=============\n" );
-    PrintMatrix( nInverse );
-    printf( "=============\n" );
-    PrintMatrix( n * nInverse );
     glfwInit();
 
     glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 4 );
@@ -111,7 +138,8 @@ int main()
         return -1;
     }
 
-    // glfwSetInputMode( window, GLFW_CURSOR, GLFW_CURSOR_DISABLED );
+    glfwSetInputMode( window, GLFW_CURSOR, GLFW_CURSOR_DISABLED );
+    glfwSetCursorPosCallback( window, MouseCallback );
     glfwMakeContextCurrent( window );
 
     if ( !gladLoadGLLoader( ( GLADloadproc ) glfwGetProcAddress ) )
@@ -130,13 +158,30 @@ int main()
         glDebugMessageControl( GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, 0, GL_TRUE );
     }
 
+    InitShapes();
+    camera = CreateCamera( Vector3( 0.0f, 0.0f, 6.0f ), defaultYaw, 0.0f );
+    // camera = CreateCamera( Vector3( 0.0f, 3.0f, 6.0f ), defaultYaw, -20.0f );
+
+    u32 uboMatrices;
+    glGenBuffers( 1, &uboMatrices );
+    glBindBuffer( GL_UNIFORM_BUFFER, uboMatrices );
+    glBufferData( GL_UNIFORM_BUFFER, 2 * sizeof( Matrix4 ), 0, GL_STATIC_DRAW );
+    glBindBuffer( GL_UNIFORM_BUFFER, 0 );
+
+    glBindBufferRange( GL_UNIFORM_BUFFER, 0, uboMatrices, 0, 2 * sizeof( Matrix4 ) );
+
+    Matrix4 projection = GetProjectionMatrix( 45.0f, ( float32 ) windowWidth / ( float32 ) windowHeight, 0.1f, 500.0f );
+    glBindBuffer( GL_UNIFORM_BUFFER, uboMatrices );
+    glBufferSubData( GL_UNIFORM_BUFFER, 0, sizeof( Matrix4 ), projection.data );
+    glBindBuffer( GL_UNIFORM_BUFFER, 0 );
+
     glViewport( 0, 0, windowWidth, windowHeight );
     glfwSetFramebufferSizeCallback( window, FramebufferSizeCallback );
 
     glEnable( GL_DEPTH_TEST );
     // glEnable( GL_STENCIL_TEST );
     glEnable( GL_BLEND );
-    glEnable( GL_CULL_FACE );
+    // glEnable( GL_CULL_FACE );
     glEnable( GL_MULTISAMPLE );
 
     glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
@@ -150,9 +195,22 @@ int main()
         lastFrame = currentFrame;
         ProcessInput( window );
 
-        // glBindFramebuffer( GL_FRAMEBUFFER, fbo );
         glClearColor( 0.4f, 0.4f, 0.4f, 1.0f );
         glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT );
+
+        Matrix4 view = GetViewMatrix( &camera );
+        glBindBuffer( GL_UNIFORM_BUFFER, uboMatrices );
+        glBufferSubData( GL_UNIFORM_BUFFER, sizeof( Matrix4 ), sizeof( Matrix4 ), view.data );
+        glBindBuffer( GL_UNIFORM_BUFFER, 0 );
+
+        Transform cubeTransform = Transform();
+        // Translate( cubeTransform, Vector3( 2.5f, 0.0f, 0.0f ) );
+        // Rotate( cubeTransform, Vector3( 0.0f, 0.0f, 1.0f ), 45.0f );
+        // Scale( cubeTransform, Vector3( 1.5f, 0.5f, 0.5f ) );
+        // Rotate( cubeTransform, Vector3( 1.0f, 0.0f, 0.0f ), -90.0f );
+        // RotateAroundPoint( cubeTransform, Vector3( 0.0f, 0.0f, 0.0f ), Vector3( 0.0f, 0.0f, 1.0f ), 90.0f );
+        // RotateAroundPoint( cubeTransform, Vector3( 0.0f, 0.0f, 0.0f ), Vector3( 1.0f, 0.0f, 0.0f ), 90.0f );
+        DrawCube( cubeTransform );
 
         glfwSwapBuffers( window );
         glfwPollEvents();
