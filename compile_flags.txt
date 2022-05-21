@@ -7,5 +7,6 @@
 -Wno-unused
 -Wno-unused-parameter
 -DSLOW
+-DINTERNAL
 -IE:\Tools\GLFW\include\GLFW
 -IE:\Tools\glad\include

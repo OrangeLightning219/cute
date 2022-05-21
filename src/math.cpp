@@ -839,19 +839,6 @@ internal MatrixTransform CreateScaleMatrix( float32 scale, Vector3 axis )
                             axaz, ayaz, z * axis.z + 1.0f, 0.0f );
 }
 
-internal MatrixTransform CreateSkewMatrix( float32 angle, Vector3 a, Vector3 b )
-{
-    angle = DEGREES_TO_RADIANS( angle );
-    float32 t = tanf( angle );
-    float32 x = a.x * t;
-    float32 y = a.y * t;
-    float32 z = a.z * t;
-
-    return MatrixTransform( x * b.x + 1.0f, x * b.y, x * b.z, 0.0f,
-                            y * b.x, y * b.y + 1.0f, y * b.z, 0.0f,
-                            z * b.x, z * b.y, z * b.z + 1.0f, 0.0f );
-}
-
 struct Quaternion
 {
     float32 x = 0.0f;
@@ -877,6 +864,19 @@ struct Quaternion
         w = s;
     }
 };
+
+internal MatrixTransform CreateSkewMatrix( float32 angle, Vector3 a, Vector3 b )
+{
+    angle = DEGREES_TO_RADIANS( angle );
+    float32 t = tanf( angle );
+    float32 x = a.x * t;
+    float32 y = a.y * t;
+    float32 z = a.z * t;
+
+    return MatrixTransform( x * b.x + 1.0f, x * b.y, x * b.z, 0.0f,
+                            y * b.x, y * b.y + 1.0f, y * b.z, 0.0f,
+                            z * b.x, z * b.y, z * b.z + 1.0f, 0.0f );
+}
 
 internal inline Vector3 GetVectorPart( Quaternion &q )
 {

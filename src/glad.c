@@ -22,7 +22,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <glad/glad.h>
+// #include <glad/glad.h>
+#include "glad.h"
 
 static void* get_proc(const char *namez);
 
@@ -173,13 +174,13 @@ static int get_exts(void) {
 #ifdef _GLAD_IS_SOME_NEW_VERSION
     if(max_loaded_major < 3) {
 #endif
-        exts = (const char *)glGetString(GL_EXTENSIONS);
+        exts = (const char *)glad_glGetString(GL_EXTENSIONS);
 #ifdef _GLAD_IS_SOME_NEW_VERSION
     } else {
         unsigned int index;
 
         num_exts_i = 0;
-        glGetIntegerv(GL_NUM_EXTENSIONS, &num_exts_i);
+        glad_glGetIntegerv(GL_NUM_EXTENSIONS, &num_exts_i);
         if (num_exts_i > 0) {
             exts_i = (char **)malloc((size_t)num_exts_i * (sizeof *exts_i));
         }
@@ -189,7 +190,7 @@ static int get_exts(void) {
         }
 
         for(index = 0; index < (unsigned)num_exts_i; index++) {
-            const char *gl_str_tmp = (const char*)glGetStringi(GL_EXTENSIONS, index);
+            const char *gl_str_tmp = (const char*)glad_glGetStringi(GL_EXTENSIONS, index);
             size_t len = strlen(gl_str_tmp);
 
             char *local_str = (char*)malloc((len+1) * sizeof(char));
@@ -881,6 +882,7 @@ static void load_GL_VERSION_1_0(GLADloadproc load) {
 	glad_glGetTexParameterfv = (PFNGLGETTEXPARAMETERFVPROC)load("glGetTexParameterfv");
 	glad_glGetTexParameteriv = (PFNGLGETTEXPARAMETERIVPROC)load("glGetTexParameteriv");
 	glad_glGetTexLevelParameterfv = (PFNGLGETTEXLEVELPARAMETERFVPROC)load("glGetTexLevelParameterfv");
+#undef glGetString
 	glad_glGetTexLevelParameteriv = (PFNGLGETTEXLEVELPARAMETERIVPROC)load("glGetTexLevelParameteriv");
 	glad_glIsEnabled = (PFNGLISENABLEDPROC)load("glIsEnabled");
 	glad_glDepthRange = (PFNGLDEPTHRANGEPROC)load("glDepthRange");
@@ -1474,7 +1476,7 @@ static void find_coreGL(void) {
         NULL
     };
 
-    version = (const char*) glGetString(GL_VERSION);
+    version = (const char*) glad_glGetString(GL_VERSION);
     if (!version) return;
 
     for (i = 0;  prefixes[i];  i++) {
@@ -1518,9 +1520,9 @@ static void find_coreGL(void) {
 
 int gladLoadGLLoader(GLADloadproc load) {
 	GLVersion.major = 0; GLVersion.minor = 0;
-	glGetString = (PFNGLGETSTRINGPROC)load("glGetString");
-	if(glGetString == NULL) return 0;
-	if(glGetString(GL_VERSION) == NULL) return 0;
+	glad_glGetString = (PFNGLGETSTRINGPROC)load("glGetString");
+	if(glad_glGetString == NULL) return 0;
+	if(glad_glGetString(GL_VERSION) == NULL) return 0;
 	find_coreGL();
 	load_GL_VERSION_1_0(load);
 	load_GL_VERSION_1_1(load);
@@ -1538,8 +1540,6 @@ int gladLoadGLLoader(GLADloadproc load) {
 	load_GL_VERSION_4_1(load);
 	load_GL_VERSION_4_2(load);
 	load_GL_VERSION_4_3(load);
-
 	if (!find_extensionsGL()) return 0;
 	return GLVersion.major != 0 || GLVersion.minor != 0;
 }
-

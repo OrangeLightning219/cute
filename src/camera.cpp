@@ -97,16 +97,7 @@ Matrix4 GetViewMatrix( Camera *camera )
                     0.0f, 0.0f, 0.0f, 1.0f );
 }
 
-internal void CameraProcessKeyboard( Camera *camera, Camera_Movement direction, float32 deltaTime )
-{
-    float32 velocity = camera->movementSpeed * deltaTime;
-    if ( direction == FORWARD ) { camera->position += camera->front * velocity; }
-    if ( direction == BACKWARD ) { camera->position -= camera->front * velocity; }
-    if ( direction == LEFT ) { camera->position -= camera->right * velocity; }
-    if ( direction == RIGHT ) { camera->position += camera->right * velocity; }
-}
-
-internal void CameraProcessMouse( Camera *camera, float32 xOffset, float32 yOffset, GLboolean constrainPitch = true )
+internal void CameraProcessMouse( Camera *camera, float32 xOffset, float32 yOffset, bool constrainPitch = true )
 {
     xOffset *= camera->mouseSensitivity;
     yOffset *= camera->mouseSensitivity;
@@ -121,11 +112,4 @@ internal void CameraProcessMouse( Camera *camera, float32 xOffset, float32 yOffs
     }
 
     UpdateCameraVectors( camera );
-}
-
-internal void CameraProcessScroll( Camera *camera, float32 yOffset )
-{
-    camera->zoom -= yOffset;
-    if ( camera->zoom < 1.0f ) { camera->zoom = 1.0f; }
-    if ( camera->zoom > 45.0f ) { camera->zoom = 45.0f; }
 }

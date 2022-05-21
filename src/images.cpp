@@ -1,14 +1,19 @@
+#pragma once
 #ifndef UNITY_BUILD
-    #include "utils/utils.h"
     #include <stdio.h>
     #include <stdlib.h>
+    #include "utils/utils.h"
+    #include "game.h"
     #include "math.cpp"
 #endif
 
-struct Read_File_Result
+struct QOI_Image
 {
-    u32 size;
-    u8 *data;
+    u32 width;
+    u32 height;
+    u8 channels;
+    u8 colorspace;
+    u8 *pixels;
 };
 
 #pragma pack( push, 1 )
@@ -21,15 +26,6 @@ struct QOI_Header
     u8 colorspace; // 0 = sRGB with linear alpha, 1 = all channels linear
 };
 #pragma pack( pop )
-
-struct QOI_Image
-{
-    u32 width;
-    u32 height;
-    u8 channels;
-    u8 colorspace;
-    u8 *pixels;
-};
 
 struct Color
 {
@@ -49,45 +45,6 @@ struct Color
     }
 };
 
-internal Read_File_Result ReadFile( char *path )
-{
-    Read_File_Result result = {};
-
-    FILE *file;
-    fopen_s( &file, path, "rb" );
-
-    if ( file )
-    {
-        fseek( file, 0, SEEK_END );
-        u32 size = ftell( file );
-        result.size = size;
-        fseek( file, 0, SEEK_SET );
-
-        if ( size > 0 )
-        {
-            result.data = ( u8 * ) malloc( size * sizeof( u8 ) );
-            u32 bytesRead = ( u32 ) fread( result.data, sizeof( u8 ), size, file );
-
-            if ( bytesRead != size )
-            {
-                printf( "File %s not fully loaded. Read %d bytes, size is %d\n", path, bytesRead, size );
-            }
-        }
-        else
-        {
-            printf( "Failed to read file %s, size is 0\n", path );
-        }
-
-        fclose( file );
-    }
-    else
-    {
-        printf( "Failed to open file %s!\n", path );
-    }
-
-    return result;
-}
-
 internal inline u32 ToLittleEndian( u32 value )
 {
     u8 *bytes = ( u8 * ) &value;
@@ -95,14 +52,14 @@ internal inline u32 ToLittleEndian( u32 value )
 }
 
 //@TODO: Add option to flip
-internal QOI_Image LoadQOI( char *path )
+internal QOI_Image LoadQOI( char *filename )
 {
     QOI_Image result = {};
-    Read_File_Result file = ReadFile( path );
 
-    if ( file.size > 0 )
+    Debug_Read_File_Result file = platform.DebugReadEntireFile( filename );
+    if ( file.contentSize > 0 )
     {
-        QOI_Header *header = ( QOI_Header * ) file.data;
+        QOI_Header *header = ( QOI_Header * ) file.content;
         header->width = ToLittleEndian( header->width );
         header->height = ToLittleEndian( header->height );
 
@@ -110,7 +67,6 @@ internal QOI_Image LoadQOI( char *path )
         result.height = header->height;
         result.channels = header->channels;
         result.colorspace = header->colorspace;
-        Assert( result.channels == 4 );
         result.pixels = ( u8 * ) malloc( result.width * result.height * result.channels * sizeof( u8 ) );
 
         u8 OP_RGB = 0b11111110;
@@ -120,8 +76,8 @@ internal QOI_Image LoadQOI( char *path )
         u8 OP_LUMA = 0b10;
         u8 OP_RUN = 0b11;
 
-        u8 *data = file.data + sizeof( QOI_Header );
-        u32 dataSize = file.size - sizeof( QOI_Header ) - 8;
+        u8 *data = ( u8 * ) file.content + sizeof( QOI_Header );
+        u32 dataSize = file.contentSize - sizeof( QOI_Header ) - 8;
         u32 bytesProcessed = 0;
         u8 *pixels = result.pixels;
         Color seenPixels[ 64 ] = {};
@@ -189,12 +145,15 @@ internal QOI_Image LoadQOI( char *path )
                     pixels[ i * 4 + 0 ] = previousPixel.r;
                     pixels[ i * 4 + 1 ] = previousPixel.g;
                     pixels[ i * 4 + 2 ] = previousPixel.b;
-                    pixels[ i * 4 + 3 ] = previousPixel.a;
+                    if ( result.channels == 4 )
+                    {
+                        pixels[ i * 4 + 3 ] = previousPixel.a;
+                    }
                 }
                 wasRun = true;
                 bytesProcessed += 1;
                 data += 1;
-                pixels += 4 * runLength;
+                pixels += result.channels * runLength;
             }
 
             if ( !wasRun )
@@ -202,8 +161,11 @@ internal QOI_Image LoadQOI( char *path )
                 pixels[ 0 ] = previousPixel.r;
                 pixels[ 1 ] = previousPixel.g;
                 pixels[ 2 ] = previousPixel.b;
-                pixels[ 3 ] = previousPixel.a;
-                pixels += 4;
+                if ( result.channels == 4 )
+                {
+                    pixels[ 3 ] = previousPixel.a;
+                }
+                pixels += result.channels;
             }
             int pixelIndex = ( previousPixel.r * 3 + previousPixel.g * 5 + previousPixel.b * 7 + previousPixel.a * 11 ) % 64;
             seenPixels[ pixelIndex ] = previousPixel;
