@@ -25,17 +25,17 @@ set compiler_args=^
 -wd4127 ^
 -wd4312 ^
 -wd4239 ^
--IE:\Tools\glad\include ^
 -DUNITY_BUILD ^
 -DSLOW ^
 -DINTERNAL
 
-set linker_args=user32.lib gdi32.lib winmm.lib shell32.lib opengl32.lib shcore.lib
+set linker_args=user32.lib gdi32.lib winmm.lib shell32.lib shcore.lib d3d11.lib DXGI.lib D3DCompiler.lib
 
 set dll_pdb_file=game_%date:~-4,4%%date:~-10,2%%date:~-7,2%_%time:~0,2%%time:~3,2%%time:~6,2%.pdb
 
 pushd src\shaders
-for %%i in (./*) do glslangValidator %%i
+fxc -nologo -T vs_5_0 -Zi -Fo ..\..\engine\shaders\vertex.fxc vertex.hlsl
+fxc -nologo -T ps_5_0 -Zi -Fo ..\..\engine\shaders\pixel.fxc pixel.hlsl
 popd
 
 pushd build
@@ -48,6 +48,3 @@ cl %compiler_args% -Fe:cute ..\src\windows_main.cpp /link %linker_args% && echo 
 
 popd
 
-
-:concat
-set shaders=%shaders% %1

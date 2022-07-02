@@ -1,12 +1,127 @@
 #pragma once
 #include <math.h>
+#include <stdio.h>
 
 #ifndef UNITY_BUILD
     #include "utils/utils.h"
-    #include <stdio.h>
 #endif
 
 //@PERFORMANCE: If perfomance becomes an issue try going back to references in operator overloads
+
+struct Vector2
+{
+    union
+    {
+        float32 x = 0.0f;
+        float32 u;
+    };
+
+    union
+    {
+        float32 y = 0.0f;
+        float32 v;
+    };
+
+    Vector2() { }
+
+    Vector2( float32 x, float32 y )
+    {
+        this->x = x;
+        this->y = y;
+    }
+
+    Vector2( float32 a )
+    {
+        x = a;
+        y = a;
+    }
+
+    float32 &operator[]( int i )
+    {
+        return ( ( &x )[ i ] );
+    }
+
+    Vector2 &operator+=( Vector2 _v )
+    {
+        x += _v.x;
+        y += _v.y;
+        return *this;
+    }
+
+    Vector2 &operator-=( Vector2 _v )
+    {
+        x -= _v.x;
+        y -= _v.y;
+        return *this;
+    }
+
+    Vector2 &operator*=( Vector2 _v )
+    {
+        x *= _v.x;
+        y *= _v.y;
+        return *this;
+    }
+
+    Vector2 &operator/=( Vector2 _v )
+    {
+        x /= _v.x;
+        y /= _v.y;
+        return *this;
+    }
+
+    Vector2 &operator-=( float32 _v )
+    {
+        x -= _v;
+        y -= _v;
+        return *this;
+    }
+
+    Vector2 &operator*=( float32 _v )
+    {
+        x *= _v;
+        y *= _v;
+        return *this;
+    }
+
+    Vector2 &operator/=( float32 _v )
+    {
+        x /= _v;
+        y /= _v;
+        return *this;
+    }
+};
+
+Vector2 &operator+=( Vector2 &v, float32 _v )
+{
+    v.x += _v;
+    v.y += _v;
+    return v;
+}
+internal inline Vector2 operator+( Vector2 a, Vector2 b )
+{
+    return Vector2( a.x + b.x, a.y + b.y );
+}
+
+internal inline Vector2 operator-( Vector2 a, Vector2 b )
+{
+    return Vector2( a.x - b.x, a.y - b.y );
+}
+
+internal inline Vector2 operator*( Vector2 v, float32 s )
+{
+    return Vector2( v.x * s, v.y * s );
+}
+
+internal inline Vector2 operator/( Vector2 v, float32 s )
+{
+    s = 1.0f / s;
+    return Vector2( v.x * s, v.y * s );
+}
+
+internal inline Vector2 operator-( Vector2 v )
+{
+    return Vector2( -v.x, -v.y );
+}
 
 struct Vector3
 {
@@ -35,6 +150,13 @@ struct Vector3
         this->x = x;
         this->y = y;
         this->z = z;
+    }
+
+    Vector3( float32 a )
+    {
+        x = a;
+        y = a;
+        z = a;
     }
 
     float32 &operator[]( int i )
@@ -106,6 +228,10 @@ struct Vector3
         return *this;
     }
 };
+
+#define AXIS_X Vector3( 1.0f, 0.0f, 0.0f )
+#define AXIS_Y Vector3( 0.0f, 1.0f, 0.0f )
+#define AXIS_Z Vector3( 0.0f, 0.0f, 1.0f )
 
 internal inline Vector3 operator+( Vector3 a, Vector3 b )
 {
@@ -199,6 +325,14 @@ struct Vector4
         this->y = y;
         this->z = z;
         this->w = w;
+    }
+
+    Vector4( float32 a )
+    {
+        x = a;
+        y = a;
+        z = a;
+        w = a;
     }
 
     float32 &operator[]( int i )
@@ -324,6 +458,8 @@ struct Matrix3
 {
     float32 data[ 3 ][ 3 ] = {};
 
+    Matrix3() { }
+
     Matrix3( float32 n00, float32 n01, float32 n02,
              float32 n10, float32 n11, float32 n12,
              float32 n20, float32 n21, float32 n22 )
@@ -423,6 +559,8 @@ internal Matrix3 Inverse( Matrix3 &m )
 struct Matrix4
 {
     float32 data[ 4 ][ 4 ] = {};
+
+    Matrix4() { }
 
     Matrix4( float32 n00, float32 n01, float32 n02, float32 n03,
              float32 n10, float32 n11, float32 n12, float32 n13,
@@ -1001,11 +1139,18 @@ internal Vector3 RotatePoint( Vector3 &v, Quaternion &q )
     return v * ( q.w * q.w - b2 ) + b * ( Dot( v, b ) * 2.0f ) + Cross( b, v ) * ( q.w * 2.0f );
 }
 
+internal void RotateAroundPoint( Vector3 &v, Vector3 point, Vector3 axis, float32 angle )
+{
+    Quaternion q = CreateQuaternion( axis, angle );
+    Vector3 p = v - point;
+    v = RotatePoint( p, q ) - ( p - v );
+}
+
 internal inline void RotateAroundPoint( Transform &t, Vector3 point, Vector3 axis, float32 angle )
 {
     Quaternion q = CreateQuaternion( axis, angle );
     Vector3 p = t.position - point;
-    t.position = RotatePoint( p, q );
+    t.position = RotatePoint( p, q ) - ( p - t.position );
     t.rotation = q * t.rotation;
 }
 
@@ -1039,7 +1184,7 @@ internal inline void Scale( Transform &t, Vector3 v )
     t.scale *= v;
 }
 
-internal MatrixTransform CreateModelMatrix( Transform &t )
+internal Matrix4 CreateModelMatrix( Transform &t )
 {
     Quaternion &q = t.rotation;
     float32 x2 = q.x * q.x;
@@ -1056,7 +1201,8 @@ internal MatrixTransform CreateModelMatrix( Transform &t )
     float32 sy = t.scale.y;
     float32 sz = t.scale.z;
 
-    return MatrixTransform( sx * ( 1.0f - 2.0f * ( y2 + z2 ) ), sy * ( 2.0f * ( xy - wz ) ), sz * ( 2.0f * ( xz + wy ) ), t.position.x,
-                            sx * ( 2.0f * ( xy + wz ) ), sy * ( 1.0f - 2.0f * ( x2 + z2 ) ), sz * ( 2.0f * ( yz - wx ) ), t.position.y,
-                            sx * ( 2.0f * ( xz - wy ) ), sy * ( 2.0f * ( yz + wx ) ), sz * ( 1.0f - 2.0f * ( x2 + y2 ) ), t.position.z );
+    return Matrix4( sx * ( 1.0f - 2.0f * ( y2 + z2 ) ), sy * ( 2.0f * ( xy - wz ) ), sz * ( 2.0f * ( xz + wy ) ), t.position.x,
+                    sx * ( 2.0f * ( xy + wz ) ), sy * ( 1.0f - 2.0f * ( x2 + z2 ) ), sz * ( 2.0f * ( yz - wx ) ), t.position.y,
+                    sx * ( 2.0f * ( xz - wy ) ), sy * ( 2.0f * ( yz + wx ) ), sz * ( 1.0f - 2.0f * ( x2 + y2 ) ), t.position.z,
+                    0.0f, 0.0f, 0.0f, 1.0f );
 }

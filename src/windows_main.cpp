@@ -1,16 +1,15 @@
-#include "glad.c"
 #include "windows_main.h"
 #include <malloc.h>
 #include <stdio.h>
 #include <xinput.h>
 #include <shellscalingapi.h>
+#include "renderer.cpp"
 // #define STB_IMAGE_IMPLEMENTATION
 
 Platform_Api platform;
 
 global_variable int windowWidth = 1920;
 global_variable int windowHeight = 1920;
-global_variable bool windowChanged = false;
 
 #define X_INPUT_GET_STATE( name ) DWORD WINAPI name( DWORD dwUserIndex, XINPUT_STATE *pState )
 #define X_INPUT_SET_STATE( name ) DWORD WINAPI name( DWORD dwUserIndex, XINPUT_VIBRATION *pVibration )
@@ -33,22 +32,6 @@ global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputGetState XInputGetState_
 #define XInputSetState XInputSetState_
 
-//@TODO: Probably move opengl stuff to separate files (or dll?)
-// ================== OpenGL ========================
-#define WGL_CONTEXT_MAJOR_VERSION_ARB             0x2091
-#define WGL_CONTEXT_MINOR_VERSION_ARB             0x2092
-#define WGL_CONTEXT_LAYER_PLANE_ARB               0x2093
-#define WGL_CONTEXT_FLAGS_ARB                     0x2094
-#define WGL_CONTEXT_PROFILE_MASK_ARB              0x9126
-#define WGL_CONTEXT_DEBUG_BIT_ARB                 0x0001
-#define WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB    0x0002
-#define WGL_CONTEXT_CORE_PROFILE_BIT_ARB          0x00000001
-#define WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB 0x00000002
-
-typedef BOOL WINAPI wgl_swap_interval_ext( int interval );
-global_variable wgl_swap_interval_ext *wglSwapIntervalEXT;
-
-typedef HGLRC WINAPI wgl_create_context_attribs_arb( HDC hDC, HGLRC hShareContext, const int *attribList );
 // ===================================================
 global_variable bool globalRunning;
 global_variable bool globalPause;
@@ -170,10 +153,8 @@ internal Windows_Game_Code WindowsLoadGameCode( char *sourceDLLName, char *tempD
     {
         // gameCode.GetSoundSamples = ( game_get_sound_samples * ) GetProcAddress( gameCode.gameCodeDLL, "GameGetSoundSamples" );
         gameCode.UpdateAndRender = ( game_update_and_render * ) GetProcAddress( gameCode.gameCodeDLL, "GameUpdateAndRender" );
-        gameCode.Init = ( game_init * ) GetProcAddress( gameCode.gameCodeDLL, "GameInit" );
-        gameCode.WindowChanged = ( game_window_changed * ) GetProcAddress( gameCode.gameCodeDLL, "GameWindowChanged" );
         // gameCode.isValid = gameCode.GetSoundSamples && gameCode.UpdateAndRender;
-        gameCode.isValid = gameCode.UpdateAndRender && gameCode.Init && gameCode.WindowChanged;
+        gameCode.isValid = gameCode.UpdateAndRender;
     }
     if ( !gameCode.isValid )
     {
@@ -336,183 +317,6 @@ inline float32 WindowsGetSecondsElapsed( LARGE_INTEGER start, LARGE_INTEGER end 
     return ( float32 ) ( end.QuadPart - start.QuadPart ) / ( float32 ) globalPerformanceCounterFrequency;
 }
 
-// void FramebufferSizeCallback( GLFWwindow *window, int width, int height )
-// {
-//     windowWidth = width;
-//     windowHeight = height;
-//     glViewport( 0, 0, width, height );
-// }
-
-// void MouseCallback( GLFWwindow *window, float64 mouseX, float64 mouseY )
-// {
-//     if ( firstMouse )
-//     {
-//         lastMouseX = ( float32 ) mouseX;
-//         lastMouseY = ( float32 ) mouseY;
-//         firstMouse = false;
-//     }
-
-//     float32 xOffset = ( float32 ) mouseX - lastMouseX;
-//     float32 yOffset = lastMouseY - ( float32 ) mouseY;
-//     lastMouseX = ( float32 ) mouseX;
-//     lastMouseY = ( float32 ) mouseY;
-//     CameraProcessMouse( &camera, xOffset, yOffset );
-// }
-
-internal OpenGL_Info OpenGLGetInfo()
-{
-    OpenGL_Info result = {};
-
-    result.vendor = ( char * ) glad_glGetString( GL_VENDOR );
-    result.renderer = ( char * ) glad_glGetString( GL_RENDERER );
-    result.version = ( char * ) glad_glGetString( GL_VERSION );
-    result.shadingLanguageVersion = ( char * ) glad_glGetString( GL_SHADING_LANGUAGE_VERSION );
-    get_exts(); // from glad
-    result.extensions = exts_i;
-    result.extensionsCount = num_exts_i;
-
-    for ( int i = 0; i < result.extensionsCount; ++i )
-    {
-        char *extension = result.extensions[ i ];
-        int length = StringLength( extension );
-        if ( StringsAreEqual( extension, length, "GL_EXT_texture_sRGB" ) ) { result.GL_EXT_texture_sRGB = true; }
-        else if ( StringsAreEqual( extension, length, "GL_ARB_framebuffer_sRGB" ) ) { result.GL_ARB_framebuffer_sRGB = true; }
-    }
-    return result;
-}
-
-internal void WindowsInitOpenGL( HWND window )
-{
-    PIXELFORMATDESCRIPTOR desiredPixelFormat = {};
-    desiredPixelFormat.nSize = sizeof( PIXELFORMATDESCRIPTOR );
-    desiredPixelFormat.nVersion = 1;
-    desiredPixelFormat.iPixelType = PFD_TYPE_RGBA;
-    desiredPixelFormat.dwFlags = PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW | PFD_DOUBLEBUFFER;
-    desiredPixelFormat.cColorBits = 32;
-    desiredPixelFormat.cAlphaBits = 8;
-    desiredPixelFormat.iLayerType = PFD_MAIN_PLANE;
-
-    HDC windowDC = GetDC( window );
-    int suggestedPixelFormatIndex = ChoosePixelFormat( windowDC, &desiredPixelFormat );
-    PIXELFORMATDESCRIPTOR suggestedPixelFormat;
-    DescribePixelFormat( windowDC, suggestedPixelFormatIndex, sizeof( suggestedPixelFormat ), &suggestedPixelFormat );
-    SetPixelFormat( windowDC, suggestedPixelFormatIndex, &suggestedPixelFormat );
-
-    HGLRC openGLContext = wglCreateContext( windowDC );
-    if ( wglMakeCurrent( windowDC, openGLContext ) )
-    {
-        HMODULE openGLDLL = LoadLibrary( "opengl32.dll" );
-        if ( openGLDLL == NULL )
-        {
-            printf( "Could not load opengl32.dll!\n" );
-            return;
-        }
-        PFNWGLGETPROCADDRESSPROC_PRIVATE wglGetProcAddress = ( PFNWGLGETPROCADDRESSPROC_PRIVATE ) GetProcAddress( openGLDLL, "wglGetProcAddress" );
-        FreeLibrary( openGLDLL );
-        wgl_create_context_attribs_arb *wglCreateContextAttribsARB = ( wgl_create_context_attribs_arb * ) wglGetProcAddress( "wglCreateContextAttribsARB" );
-        if ( wglCreateContextAttribsARB )
-        {
-            int flags = WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
-#ifdef INTERNAL
-            flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
-#endif
-
-            HGLRC shareContext = 0;
-            int attributes[] = {
-                WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
-                WGL_CONTEXT_MINOR_VERSION_ARB, 3,
-                WGL_CONTEXT_FLAGS_ARB, flags,
-                WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-                0
-            };
-            HGLRC modernContext = wglCreateContextAttribsARB( windowDC, shareContext, attributes );
-            if ( modernContext )
-            {
-                wglMakeCurrent( windowDC, modernContext );
-                wglDeleteContext( openGLContext );
-                openGLContext = modernContext;
-            }
-        }
-
-        if ( !gladLoadGL() )
-        {
-            printf( "Could not load OpenGL!\n" );
-            return;
-        }
-
-        OpenGL_Info info = OpenGLGetInfo();
-
-        // if(info.EXTENSION_NAME)
-        // {
-        //     // do something
-        // }
-
-        wglSwapIntervalEXT = ( wgl_swap_interval_ext * ) wglGetProcAddress( "wglSwapIntervalEXT" );
-        if ( wglSwapIntervalEXT )
-        {
-            wglSwapIntervalEXT( 1 );
-        }
-
-        platform.glEnable = glad_glEnable;
-        platform.glViewport = glad_glViewport;
-        platform.glClearColor = glad_glClearColor;
-        platform.glClear = glad_glClear;
-        platform.glGenBuffers = glad_glGenBuffers;
-        platform.glBindBuffer = glad_glBindBuffer;
-        platform.glBufferData = glad_glBufferData;
-        platform.glBindBufferRange = glad_glBindBufferRange;
-        platform.glBufferSubData = glad_glBufferSubData;
-        platform.glGetIntegerv = glad_glGetIntegerv;
-
-        platform.glCreateShader = glad_glCreateShader;
-        platform.glShaderSource = glad_glShaderSource;
-        platform.glCompileShader = glad_glCompileShader;
-        platform.glGetShaderiv = glad_glGetShaderiv;
-        platform.glGetShaderInfoLog = glad_glGetShaderInfoLog;
-        platform.glCreateProgram = glad_glCreateProgram;
-        platform.glAttachShader = glad_glAttachShader;
-        platform.glLinkProgram = glad_glLinkProgram;
-        platform.glGetProgramiv = glad_glGetProgramiv;
-        platform.glGetProgramInfoLog = glad_glGetProgramInfoLog;
-        platform.glDeleteShader = glad_glDeleteShader;
-        platform.glUseProgram = glad_glUseProgram;
-        platform.glGetUniformBlockIndex = glad_glGetUniformBlockIndex;
-        platform.glUniformBlockBinding = glad_glUniformBlockBinding;
-        platform.glGetUniformLocation = glad_glGetUniformLocation;
-        platform.glUniform1f = glad_glUniform1f;
-        platform.glUniform2f = glad_glUniform2f;
-        platform.glUniform3f = glad_glUniform3f;
-        platform.glUniform4f = glad_glUniform4f;
-        platform.glUniform1i = glad_glUniform1i;
-        platform.glUniform2i = glad_glUniform2i;
-        platform.glUniform3i = glad_glUniform3i;
-        platform.glUniform4i = glad_glUniform4i;
-        platform.glUniformMatrix4fv = glad_glUniformMatrix4fv;
-
-        platform.glGenTextures = glad_glGenTextures;
-        platform.glBindTexture = glad_glBindTexture;
-        platform.glTexParameteri = glad_glTexParameteri;
-        platform.glTexImage2D = glad_glTexImage2D;
-        platform.glGenerateMipmap = glad_glGenerateMipmap;
-        platform.glActiveTexture = glad_glActiveTexture;
-        platform.glBlendFunc = glad_glBlendFunc;
-
-        platform.glGenVertexArrays = glad_glGenVertexArrays;
-        platform.glBindVertexArray = glad_glBindVertexArray;
-        platform.glEnableVertexAttribArray = glad_glEnableVertexAttribArray;
-        platform.glVertexAttribPointer = glad_glVertexAttribPointer;
-        platform.glDrawArrays = glad_glDrawArrays;
-
-        platform.glDebugMessageCallback = glad_glDebugMessageCallback;
-        platform.glDebugMessageControl = glad_glDebugMessageControl;
-    }
-    else
-    {
-        Assert( !"InvalidCodePath" )
-    }
-    ReleaseDC( window, windowDC );
-}
-
 internal void WindowsProcessPendingMessages( Windows_State *state, Game_Controller_Input *keyboardController )
 {
     MSG message;
@@ -629,7 +433,6 @@ LRESULT CALLBACK WindowsMainWindowCallback( HWND window, UINT message, WPARAM wP
         {
             windowWidth = LOWORD( lParam );
             windowHeight = HIWORD( lParam );
-            windowChanged = true;
         }
         break;
 
@@ -699,25 +502,49 @@ int WinMain( HINSTANCE instance,
 
     SetProcessDpiAwareness( PROCESS_SYSTEM_DPI_AWARE );
 
+#ifdef INTERNAL
+    FILE *stdoutFile;
+    AllocConsole();
+    SetConsoleOutputCP( CP_UTF8 );
+    freopen_s( &stdoutFile, "CONOUT$", "wb", stdout );
+    defer { fclose( stdoutFile ); };
+#endif
+
     WNDCLASS windowClass = {};
 
-    windowClass.style = CS_HREDRAW | CS_VREDRAW;
+    windowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
     windowClass.lpfnWndProc = WindowsMainWindowCallback;
     windowClass.hInstance = instance;
     // windowClass.hIcon = ;
-    windowClass.lpszClassName = "IsometricGameWindowClass";
+    windowClass.lpszClassName = "CuteWindowClass";
 
     RegisterClass( &windowClass );
 
+    RECT windowRectangle;
+    windowRectangle.left = GetSystemMetrics( SM_CXSCREEN ) / 2 - windowWidth / 2;
+    windowRectangle.top = GetSystemMetrics( SM_CYSCREEN ) / 2 - windowHeight / 2;
+    windowRectangle.right = windowRectangle.left + windowWidth;
+    windowRectangle.bottom = windowRectangle.top + windowHeight;
+
+    int windowStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+
+    AdjustWindowRect( &windowRectangle, windowStyle, FALSE );
     //WS_EX_LAYERED - make transparent window
-    HWND window = CreateWindowEx( 0, windowClass.lpszClassName, "Cute Game", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                                  CW_USEDEFAULT, CW_USEDEFAULT, windowWidth, windowHeight, 0, 0, instance, 0 );
+    HWND window = CreateWindowEx( 0, windowClass.lpszClassName, "Cute Game", windowStyle,
+                                  windowRectangle.left, windowRectangle.top,
+                                  windowRectangle.right - windowRectangle.left,
+                                  windowRectangle.bottom - windowRectangle.top,
+                                  NULL, NULL, instance, NULL );
 
     if ( window )
     {
         globalRunning = true;
-        WindowsInitOpenGL( window );
 
+        if ( !InitializeDirectX( window, windowWidth, windowHeight ) )
+        {
+            Log( "Failed to initialize DirectX!" );
+            globalRunning = false;
+        }
         //@TODO: Figure out cursor hiding
         // RECT mouseBoundry;
         // GetWindowRect( window, &mouseBoundry );
@@ -744,7 +571,7 @@ int WinMain( HINSTANCE instance,
         LPVOID baseAddress = 0;
 #endif
         gameMemory.permanentStorageSize = Megabytes( 64 );
-        gameMemory.transientStorageSize = Megabytes( 256 );
+        gameMemory.transientStorageSize = Megabytes( 32 );
         state.totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
         state.gameMemoryBlock = VirtualAlloc( baseAddress, state.totalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE );
         gameMemory.permanentStorage = state.gameMemoryBlock;
@@ -754,6 +581,11 @@ int WinMain( HINSTANCE instance,
         platform.DebugReadEntireFile = DebugPlatformReadEntireFile;
         platform.DebugWriteEntireFile = DebugPlatformWriteEntireFile;
 #endif
+
+        platform.RendererInit = RendererInit;
+        platform.RendererBeginFrame = RendererBeginFrame;
+        platform.RendererEndFrame = RendererEndFrame;
+        platform.RendererDrawCube = RendererDrawCube;
 
         gameMemory.platformApi = platform;
 
@@ -782,10 +614,6 @@ int WinMain( HINSTANCE instance,
             Game_Input *oldInput = &input[ 1 ];
 
             Windows_Game_Code game = WindowsLoadGameCode( sourceGameCodeDLLFullPath, tempGameCodeDLLFullPath );
-            if ( game.Init )
-            {
-                game.Init( &gameMemory, windowWidth, windowHeight );
-            }
             while ( globalRunning )
             {
                 newInput->dtForUpdate = targetSecondsPerFrame;
@@ -930,22 +758,15 @@ int WinMain( HINSTANCE instance,
                     WindowsPlaybackInput( &state, newInput );
                 }
 
-                if ( game.WindowChanged && windowChanged )
-                {
-                    game.WindowChanged( &gameMemory, windowWidth, windowHeight );
-                    windowChanged = false;
-                }
-
                 if ( game.UpdateAndRender )
                 {
-                    game.UpdateAndRender( &gameMemory, newInput );
+                    game.UpdateAndRender( &gameMemory, newInput, windowWidth, windowHeight );
                 }
 
-                SwapBuffers( windowDC );
                 LARGE_INTEGER workCounter = WindowsGetWallClock();
                 float32 secondsElapsedForFrame = WindowsGetSecondsElapsed( lastCounter, workCounter );
 
-                printf( "Frame time: %f\n", secondsElapsedForFrame );
+                // printf( "Frame time: %f\n", secondsElapsedForFrame );
                 LARGE_INTEGER endCounter = WindowsGetWallClock();
                 lastCounter = endCounter;
 
@@ -956,12 +777,14 @@ int WinMain( HINSTANCE instance,
         }
         else
         {
-            //@TODO: Logging
+            LogResult( GetLastError(), "Memory init failed!" );
         }
     }
     else
     {
-        //@TODO: Logging
+        LogResult( GetLastError(), "Window creation failed!" );
     }
+    DestroyWindow( window );
+    system( "pause" );
     return 0;
 }

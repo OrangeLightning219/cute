@@ -1,3 +1,4 @@
 build
 engine
 *.plan
+*.plan_bak*

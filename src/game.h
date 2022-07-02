@@ -1,7 +1,6 @@
 #pragma once
+#include "shared.h"
 
-#include "glad.h"
-#include "utils/utils.h"
 #ifndef UNITY_BUILD
 #endif
 
@@ -80,18 +79,17 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE( debug_platform_write_entire_file );
 
 #endif
 
-struct OpenGL_Info
-{
-    char *vendor;
-    char *renderer;
-    char *version;
-    char *shadingLanguageVersion;
-    char **extensions;
-    int extensionsCount;
+#define RENDERER_INIT( name ) bool name()
+typedef RENDERER_INIT( renderer_init );
 
-    bool GL_EXT_texture_sRGB;
-    bool GL_ARB_framebuffer_sRGB;
-};
+#define RENDERER_BEGIN_FRAME( name ) void name( Matrix4 viewProjectionMatrix )
+typedef RENDERER_BEGIN_FRAME( renderer_begin_frame );
+
+#define RENDERER_END_FRAME( name ) void name()
+typedef RENDERER_END_FRAME( renderer_end_frame );
+
+#define RENDERER_DRAW_CUBE( name ) void name( Transform transform, Vector4 color )
+typedef RENDERER_DRAW_CUBE( renderer_draw_cube );
 
 struct Platform_Api
 {
@@ -101,58 +99,10 @@ struct Platform_Api
     debug_platform_free_file_memory *DebugFreeFileMemory;
 #endif
 
-    PFNGLENABLEPROC glEnable;
-    PFNGLVIEWPORTPROC glViewport;
-    PFNGLCLEARCOLORPROC glClearColor;
-    PFNGLCLEARPROC glClear;
-    PFNGLGENBUFFERSPROC glGenBuffers;
-    PFNGLBINDBUFFERPROC glBindBuffer;
-    PFNGLBUFFERDATAPROC glBufferData;
-    PFNGLBINDBUFFERRANGEPROC glBindBufferRange;
-    PFNGLBUFFERSUBDATAPROC glBufferSubData;
-    PFNGLGETINTEGERVPROC glGetIntegerv;
-
-    PFNGLCREATESHADERPROC glCreateShader;
-    PFNGLSHADERSOURCEPROC glShaderSource;
-    PFNGLCOMPILESHADERPROC glCompileShader;
-    PFNGLGETSHADERIVPROC glGetShaderiv;
-    PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog;
-    PFNGLCREATEPROGRAMPROC glCreateProgram;
-    PFNGLATTACHSHADERPROC glAttachShader;
-    PFNGLLINKPROGRAMPROC glLinkProgram;
-    PFNGLGETPROGRAMIVPROC glGetProgramiv;
-    PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog;
-    PFNGLDELETESHADERPROC glDeleteShader;
-    PFNGLUSEPROGRAMPROC glUseProgram;
-    PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex;
-    PFNGLUNIFORMBLOCKBINDINGPROC glUniformBlockBinding;
-    PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation;
-    PFNGLUNIFORM1FPROC glUniform1f;
-    PFNGLUNIFORM2FPROC glUniform2f;
-    PFNGLUNIFORM3FPROC glUniform3f;
-    PFNGLUNIFORM4FPROC glUniform4f;
-    PFNGLUNIFORM1IPROC glUniform1i;
-    PFNGLUNIFORM2IPROC glUniform2i;
-    PFNGLUNIFORM3IPROC glUniform3i;
-    PFNGLUNIFORM4IPROC glUniform4i;
-    PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv;
-
-    PFNGLGENTEXTURESPROC glGenTextures;
-    PFNGLBINDTEXTUREPROC glBindTexture;
-    PFNGLTEXPARAMETERIPROC glTexParameteri;
-    PFNGLTEXIMAGE2DPROC glTexImage2D;
-    PFNGLGENERATEMIPMAPPROC glGenerateMipmap;
-    PFNGLACTIVETEXTUREPROC glActiveTexture;
-    PFNGLBLENDFUNCPROC glBlendFunc;
-
-    PFNGLGENVERTEXARRAYSPROC glGenVertexArrays;
-    PFNGLBINDVERTEXARRAYPROC glBindVertexArray;
-    PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray;
-    PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer;
-    PFNGLDRAWARRAYSPROC glDrawArrays;
-
-    PFNGLDEBUGMESSAGECALLBACKPROC glDebugMessageCallback;
-    PFNGLDEBUGMESSAGECONTROLPROC glDebugMessageControl;
+    renderer_init *RendererInit;
+    renderer_begin_frame *RendererBeginFrame;
+    renderer_end_frame *RendererEndFrame;
+    renderer_draw_cube *RendererDrawCube;
 };
 
 extern Platform_Api platform;
@@ -169,14 +119,9 @@ struct Game_Memory
 };
 
 // services for the platform layer
-#define GAME_UPDATE_AND_RENDER( name ) void name( Game_Memory *memory, Game_Input *input )
+// @TODO: Get rid of windowWidth and windowHeight from here.
+#define GAME_UPDATE_AND_RENDER( name ) void name( Game_Memory *memory, Game_Input *input, int windowWidth, int windowHeight )
 typedef GAME_UPDATE_AND_RENDER( game_update_and_render );
-
-#define GAME_INIT( name ) void name( Game_Memory *memory, int windowWidth, int windowHeight )
-typedef GAME_INIT( game_init );
-
-#define GAME_WINDOW_CHANGED( name ) void name( Game_Memory *memory, int windowWidth, int windowHeight )
-typedef GAME_WINDOW_CHANGED( game_window_changed );
 
 typedef size_t memory_index;
 
